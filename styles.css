@@ -93,6 +93,7 @@ body {
 .control-group {
   display: grid;
   gap: 6px;
+  min-width: 0;
 }
 
 .label {
@@ -113,6 +114,7 @@ select {
   border-radius: 12px;
   border: 1px solid var(--border);
   background: #fff;
+  width: 100%;
 }
 
 input[type="file"] {
@@ -231,6 +233,10 @@ button.danger {
   padding-top: 12px;
 }
 
+.history-actions {
+  padding-top: 8px;
+}
+
 .history-item {
   background: #fff;
   border-radius: 16px;
@@ -269,6 +275,10 @@ button.danger {
 
   .actions {
     flex-direction: column;
+  }
+
+  .controls {
+    grid-template-columns: 1fr;
   }
 }
 

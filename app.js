@@ -1,30 +1,26 @@
 const STORAGE_KEY = "pagewords.v1";
 
 const quickFileInput = document.getElementById("quick-file");
-const quickMethod = document.getElementById("quick-method");
-const quickWordsPerLineGroup = document.getElementById("quick-words-per-line-group");
-const quickWordsPerLine = document.getElementById("quick-words-per-line");
 const quickWordCount = document.getElementById("quick-word-count");
-const quickLineCount = document.getElementById("quick-line-count");
-const quickMethodUsed = document.getElementById("quick-method-used");
+const quickOcrConfidence = document.getElementById("quick-ocr-confidence");
 const quickOcrDetails = document.getElementById("quick-ocr-details");
 const quickOcrText = document.getElementById("quick-ocr-text");
 
 const bookTitle = document.getElementById("book-title");
 const bookTotalPages = document.getElementById("book-total-pages");
-const bookMethod = document.getElementById("book-method");
-const bookWordsPerLineGroup = document.getElementById("book-words-per-line-group");
-const bookWordsPerLine = document.getElementById("book-words-per-line");
 const bookFileInput = document.getElementById("book-file");
 const bookAvgWords = document.getElementById("book-avg-words");
 const bookTotalWords = document.getElementById("book-total-words");
 const bookPagesScanned = document.getElementById("book-pages-scanned");
+const bookAvgConfidence = document.getElementById("book-avg-confidence");
 const bookScanList = document.getElementById("book-scan-list");
 const bookSave = document.getElementById("book-save");
 const bookReset = document.getElementById("book-reset");
 const historyList = document.getElementById("history-list");
+const historyExport = document.getElementById("history-export");
 
 const state = loadState();
+let ocrWorkerPromise = null;
 
 function createBlankBook() {
   return {
@@ -57,21 +53,6 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function setMethodVisibility(selectEl, groupEl) {
-  groupEl.style.display = selectEl.value === "fast" ? "grid" : "none";
-}
-
-setMethodVisibility(quickMethod, quickWordsPerLineGroup);
-setMethodVisibility(bookMethod, bookWordsPerLineGroup);
-
-quickMethod.addEventListener("change", () => {
-  setMethodVisibility(quickMethod, quickWordsPerLineGroup);
-});
-
-bookMethod.addEventListener("change", () => {
-  setMethodVisibility(bookMethod, bookWordsPerLineGroup);
-});
-
 bookTitle.value = state.currentBook.title || "";
 bookTotalPages.value = state.currentBook.totalPages || "";
 
@@ -92,11 +73,8 @@ quickFileInput.addEventListener("change", async () => {
   if (!file) {
     return;
   }
-  setQuickResult("Processing...", "--", "--");
-  const result = await analyzeFile(file, {
-    method: quickMethod.value,
-    wordsPerLine: Number(quickWordsPerLine.value || 10),
-  });
+  setQuickResult("Processing...", "Working...");
+  const result = await analyzeWithOcr(file);
   renderQuickResult(result);
   quickFileInput.value = "";
 });
@@ -106,10 +84,8 @@ bookFileInput.addEventListener("change", async () => {
   if (!file) {
     return;
   }
-  const result = await analyzeFile(file, {
-    method: bookMethod.value,
-    wordsPerLine: Number(bookWordsPerLine.value || 10),
-  });
+  bookAvgConfidence.textContent = "Working...";
+  const result = await analyzeWithOcr(file);
   state.currentBook.scans.push(result);
   saveState();
   renderBookScans();
@@ -146,14 +122,35 @@ bookReset.addEventListener("click", () => {
   renderBookStats();
 });
 
-function setQuickResult(wordCount, lineCount, method) {
+historyExport.addEventListener("click", () => {
+  if (!state.history.length) {
+    alert("No saved books to export.");
+    return;
+  }
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    books: state.history,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `book-history-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+});
+
+function setQuickResult(wordCount, confidence) {
   quickWordCount.textContent = wordCount;
-  quickLineCount.textContent = lineCount;
-  quickMethodUsed.textContent = method;
+  quickOcrConfidence.textContent = confidence;
 }
 
 function renderQuickResult(result) {
-  setQuickResult(result.wordCount, result.lineCount || "--", result.methodLabel);
+  setQuickResult(result.wordCount, formatConfidence(result.confidence));
   quickOcrText.textContent = result.ocrText ? result.ocrText.trim() : "";
   quickOcrDetails.style.display = result.ocrText ? "block" : "none";
 }
@@ -186,15 +183,9 @@ function renderBookScans() {
     header.appendChild(remove);
     const meta = document.createElement("div");
     meta.className = "scan-meta";
-    meta.textContent = `${scan.wordCount} words · ${scan.methodLabel}`;
+    meta.textContent = `${scan.wordCount} words · OCR ${formatConfidence(scan.confidence)}`;
     item.appendChild(header);
     item.appendChild(meta);
-    if (scan.lineCount) {
-      const line = document.createElement("div");
-      line.className = "scan-meta";
-      line.textContent = `Lines detected: ${scan.lineCount}`;
-      item.appendChild(line);
-    }
     if (scan.ocrText) {
       const details = document.createElement("details");
       details.className = "details";
@@ -217,11 +208,15 @@ function renderBookStats() {
   if (!count) {
     bookAvgWords.textContent = "--";
     bookTotalWords.textContent = "--";
+    bookAvgConfidence.textContent = "--";
     return;
   }
   const totalWords = scans.reduce((sum, scan) => sum + scan.wordCount, 0);
   const avgWords = Math.round(totalWords / count);
   bookAvgWords.textContent = avgWords;
+  const avgConfidence =
+    scans.reduce((sum, scan) => sum + (scan.confidence || 0), 0) / count;
+  bookAvgConfidence.textContent = formatConfidence(avgConfidence);
 
   const totalPages = Number(state.currentBook.totalPages);
   if (Number.isFinite(totalPages) && totalPages > 0) {
@@ -281,55 +276,35 @@ function renderHistory() {
   });
 }
 
-async function analyzeFile(file, options) {
-  const method = options.method;
-  const wordsPerLine = Number(options.wordsPerLine) || 10;
-
-  if (method === "ocr") {
-    return await analyzeWithOcr(file);
-  }
-  const canvas = await renderToCanvas(file);
-  const { lineCount, threshold } = estimateLines(canvas);
-  const wordCount = Math.max(1, Math.round(lineCount * wordsPerLine));
-  return {
-    id: crypto.randomUUID(),
-    methodLabel: `Fast estimate (${wordsPerLine} words/line)`,
-    wordCount,
-    lineCount,
-    threshold,
-    createdAt: new Date().toISOString(),
-  };
-}
-
 async function analyzeWithOcr(file) {
   if (!window.Tesseract) {
     alert("OCR library not loaded. Check your connection.");
   }
-  const { data } = await window.Tesseract.recognize(file, "eng", {
-    logger: () => {},
-  });
+  const worker = await getOcrWorker();
+  const imageDataUrl = await preprocessImage(file);
+  const { data } = await worker.recognize(imageDataUrl);
   const text = data.text || "";
   const words = text.match(/[\p{L}\p{N}']+/gu) || [];
   return {
     id: crypto.randomUUID(),
-    methodLabel: "OCR word count",
     wordCount: words.length,
-    lineCount: countLinesFromText(text),
-    ocrText: text.slice(0, 1200),
+    confidence: data.confidence || 0,
+    ocrText: text.slice(0, 1600),
     createdAt: new Date().toISOString(),
   };
 }
 
-async function renderToCanvas(file) {
+async function preprocessImage(file) {
   const image = await loadImage(file);
-  const maxSize = 1200;
+  const maxSize = 1600;
   const ratio = Math.min(maxSize / image.width, maxSize / image.height, 1);
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(image.width * ratio);
   canvas.height = Math.round(image.height * ratio);
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return canvas;
+  applyContrast(ctx, canvas.width, canvas.height, 30);
+  return canvas.toDataURL("image/png");
 }
 
 function loadImage(file) {
@@ -346,83 +321,45 @@ function loadImage(file) {
   });
 }
 
-function estimateLines(canvas) {
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  const { width, height } = canvas;
+function applyContrast(ctx, width, height, contrast) {
   const imageData = ctx.getImageData(0, 0, width, height);
   const data = imageData.data;
-  const pixels = width * height;
-  let sum = 0;
-
+  const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
   for (let i = 0; i < data.length; i += 4) {
-    const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
-    sum += gray;
+    const gray = data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722;
+    const adjusted = clamp(factor * (gray - 128) + 128, 0, 255);
+    data[i] = adjusted;
+    data[i + 1] = adjusted;
+    data[i + 2] = adjusted;
   }
-
-  const mean = sum / pixels;
-  let variance = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
-    variance += (gray - mean) ** 2;
-  }
-  const stdev = Math.sqrt(variance / pixels);
-  const threshold = Math.max(40, mean - stdev * 0.5);
-
-  const rowDensity = new Array(height).fill(0);
-  let index = 0;
-  for (let y = 0; y < height; y += 1) {
-    let darkCount = 0;
-    for (let x = 0; x < width; x += 1) {
-      const gray = (data[index] + data[index + 1] + data[index + 2]) / 3;
-      if (gray < threshold) {
-        darkCount += 1;
-      }
-      index += 4;
-    }
-    rowDensity[y] = darkCount / width;
-  }
-
-  const smoothed = rowDensity.map((_, y) => {
-    let sumDensity = 0;
-    let count = 0;
-    for (let offset = -2; offset <= 2; offset += 1) {
-      const sample = rowDensity[y + offset];
-      if (sample !== undefined) {
-        sumDensity += sample;
-        count += 1;
-      }
-    }
-    return sumDensity / count;
-  });
-
-  const minDensity = 0.05;
-  const minLineHeight = Math.max(4, Math.round(height * 0.008));
-  let lineCount = 0;
-  let inLine = false;
-  let lineStart = 0;
-
-  for (let y = 0; y < height; y += 1) {
-    if (smoothed[y] > minDensity) {
-      if (!inLine) {
-        inLine = true;
-        lineStart = y;
-      }
-    } else if (inLine) {
-      if (y - lineStart >= minLineHeight) {
-        lineCount += 1;
-      }
-      inLine = false;
-    }
-  }
-  if (inLine && height - lineStart >= minLineHeight) {
-    lineCount += 1;
-  }
-
-  return { lineCount, threshold: Math.round(threshold) };
+  ctx.putImageData(imageData, 0, 0);
 }
 
-function countLinesFromText(text) {
-  return text.split(/\n+/).filter((line) => line.trim().length > 0).length || 0;
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function formatConfidence(value) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "--";
+  }
+  return `${Math.round(value)}%`;
+}
+
+async function getOcrWorker() {
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = (async () => {
+      const worker = await window.Tesseract.createWorker();
+      await worker.loadLanguage("eng");
+      await worker.initialize("eng");
+      await worker.setParameters({
+        tessedit_pageseg_mode: 6,
+        user_defined_dpi: "300",
+      });
+      return worker;
+    })();
+  }
+  return ocrWorkerPromise;
 }
 
 renderBookScans();
