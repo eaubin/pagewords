@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PageWords - Book Word Estimator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Zilla+Slab:wght@500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <p class="eyebrow">PageWords</p>
+        <h1>Estimate book word counts from a few pages.</h1>
+        <p class="lede">Snap a page, get a word estimate, and scale it to the whole book. No account, no fuss.</p>
+      </header>
+
+      <section class="card" id="quick-card">
+        <div class="card-header">
+          <h2>Quick page estimate</h2>
+          <p>Use this when you just want a single page count.</p>
+        </div>
+        <div class="controls">
+          <div class="control-group">
+            <label class="label" for="quick-method">Method</label>
+            <select id="quick-method">
+              <option value="fast" selected>Fast estimate (line count)</option>
+              <option value="ocr">OCR word count (slower)</option>
+            </select>
+          </div>
+          <div class="control-group" id="quick-words-per-line-group">
+            <label class="label" for="quick-words-per-line">Avg words per line</label>
+            <input id="quick-words-per-line" type="number" min="4" max="20" step="0.5" value="10" />
+          </div>
+          <div class="control-group">
+            <label class="label" for="quick-file">Take or choose a photo</label>
+            <input id="quick-file" type="file" accept="image/*" capture="environment" />
+          </div>
+        </div>
+        <div class="results" id="quick-results">
+          <div class="result-pill">
+            <span class="result-label">Estimated words</span>
+            <span class="result-value" id="quick-word-count">--</span>
+          </div>
+          <div class="result-pill">
+            <span class="result-label">Detected lines</span>
+            <span class="result-value" id="quick-line-count">--</span>
+          </div>
+          <div class="result-pill">
+            <span class="result-label">Method</span>
+            <span class="result-value" id="quick-method-used">--</span>
+          </div>
+        </div>
+        <details class="details" id="quick-ocr-details">
+          <summary>Detected text (OCR)</summary>
+          <pre id="quick-ocr-text"></pre>
+        </details>
+      </section>
+
+      <section class="card" id="book-card">
+        <div class="card-header">
+          <h2>Book estimator</h2>
+          <p>Scan a few pages to estimate the whole book. Title is optional.</p>
+        </div>
+        <div class="controls">
+          <div class="control-group">
+            <label class="label" for="book-title">Book title (optional)</label>
+            <input id="book-title" type="text" placeholder="Untitled book" />
+          </div>
+          <div class="control-group">
+            <label class="label" for="book-total-pages">Total pages in book</label>
+            <input id="book-total-pages" type="number" min="1" placeholder="e.g. 320" />
+          </div>
+          <div class="control-group">
+            <label class="label" for="book-method">Default scan method</label>
+            <select id="book-method">
+              <option value="fast" selected>Fast estimate (line count)</option>
+              <option value="ocr">OCR word count (slower)</option>
+            </select>
+          </div>
+          <div class="control-group" id="book-words-per-line-group">
+            <label class="label" for="book-words-per-line">Avg words per line</label>
+            <input id="book-words-per-line" type="number" min="4" max="20" step="0.5" value="10" />
+          </div>
+          <div class="control-group">
+            <label class="label" for="book-file">Scan a page</label>
+            <input id="book-file" type="file" accept="image/*" capture="environment" />
+          </div>
+        </div>
+
+        <div class="results">
+          <div class="result-pill">
+            <span class="result-label">Avg words per scanned page</span>
+            <span class="result-value" id="book-avg-words">--</span>
+          </div>
+          <div class="result-pill">
+            <span class="result-label">Estimated words in book</span>
+            <span class="result-value" id="book-total-words">--</span>
+          </div>
+          <div class="result-pill">
+            <span class="result-label">Pages scanned</span>
+            <span class="result-value" id="book-pages-scanned">0</span>
+          </div>
+        </div>
+
+        <div class="scan-list" id="book-scan-list"></div>
+
+        <div class="actions">
+          <button class="ghost" id="book-save">Save to history</button>
+          <button class="ghost" id="book-reset">Start new book</button>
+        </div>
+      </section>
+
+      <details class="card muted" id="history-panel">
+        <summary>Book history</summary>
+        <div class="history-list" id="history-list"></div>
+      </details>
+
+      <section class="tips">
+        <h3>Photo tips for better estimates</h3>
+        <ul>
+          <li>Fill the frame with the page, keep the camera parallel.</li>
+          <li>Use even lighting, avoid shadows or glare.</li>
+          <li>Steady the camera and avoid motion blur.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

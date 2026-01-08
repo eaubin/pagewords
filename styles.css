@@ -1,0 +1,277 @@
+:root {
+  color-scheme: light;
+  --ink: #101214;
+  --muted: #5b626b;
+  --surface: #ffffff;
+  --surface-2: #f3f0ea;
+  --accent: #d36f3b;
+  --accent-2: #0f5d6a;
+  --border: rgba(16, 18, 20, 0.12);
+  --shadow: 0 16px 40px rgba(20, 24, 34, 0.12);
+  --radius: 22px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  color: var(--ink);
+  background: radial-gradient(circle at top, #fbe8dc, #f7f1ea 40%, #efe4d8 100%);
+}
+
+.page {
+  width: min(960px, 92vw);
+  margin: 0 auto;
+  padding: 32px 0 64px;
+  display: grid;
+  gap: 24px;
+}
+
+.hero {
+  padding: 12px 4px 8px;
+  display: grid;
+  gap: 12px;
+  animation: float-in 600ms ease-out;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.72rem;
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.hero h1 {
+  font-family: "Zilla Slab", serif;
+  font-size: clamp(2rem, 4vw, 3rem);
+  margin: 0;
+}
+
+.lede {
+  font-size: 1.05rem;
+  max-width: 38rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid rgba(16, 18, 20, 0.06);
+  display: grid;
+  gap: 18px;
+}
+
+.card.muted {
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+.card-header h2 {
+  margin: 0 0 4px;
+  font-size: 1.35rem;
+}
+
+.card-header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.controls {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.control-group {
+  display: grid;
+  gap: 6px;
+}
+
+.label {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+input,
+select,
+button {
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+input,
+select {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+input[type="file"] {
+  padding: 8px;
+}
+
+.results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.result-pill {
+  background: rgba(211, 111, 59, 0.08);
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 4px;
+}
+
+.result-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.result-value {
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.details {
+  background: rgba(15, 93, 106, 0.08);
+  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px dashed rgba(15, 93, 106, 0.2);
+}
+
+.details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.details pre {
+  white-space: pre-wrap;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: 0.9rem;
+}
+
+.scan-list {
+  display: grid;
+  gap: 12px;
+}
+
+.scan-item {
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 6px;
+  background: #fff;
+}
+
+.scan-item header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.scan-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+button {
+  border-radius: 999px;
+  padding: 10px 18px;
+  border: none;
+  cursor: pointer;
+}
+
+button.ghost {
+  background: #fff;
+  border: 1px solid var(--border);
+}
+
+button.danger {
+  background: #f8d7d5;
+  color: #8e2e25;
+}
+
+.tips {
+  padding: 4px 8px;
+  color: var(--muted);
+}
+
+.tips h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.tips ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.history-list {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.history-item {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.history-item header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+@keyframes float-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 24px 0 48px;
+  }
+
+  .card {
+    padding: 18px;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}
+
+#quick-ocr-details {
+  display: none;
+}
