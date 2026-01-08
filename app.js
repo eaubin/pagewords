@@ -1,10 +1,60 @@
 const STORAGE_KEY = "pagewords.v1";
+const DEFAULT_OCR_LANGUAGE = "eng";
+const SUPPORTED_LANGUAGES = new Set([
+  "eng",
+  "spa",
+  "chi_sim",
+  "chi_tra",
+  "ara",
+  "ben",
+  "bul",
+  "ces",
+  "dan",
+  "nld",
+  "est",
+  "fin",
+  "fra",
+  "deu",
+  "ell",
+  "heb",
+  "hin",
+  "hrv",
+  "hun",
+  "ind",
+  "isl",
+  "ita",
+  "jpn",
+  "kan",
+  "kor",
+  "lav",
+  "lit",
+  "mal",
+  "mar",
+  "msa",
+  "nor",
+  "pol",
+  "por",
+  "ron",
+  "rus",
+  "slk",
+  "slv",
+  "srp",
+  "swe",
+  "tam",
+  "tel",
+  "tgl",
+  "tha",
+  "tur",
+  "ukr",
+  "vie",
+]);
 
 const quickFileInput = document.getElementById("quick-file");
 const quickWordCount = document.getElementById("quick-word-count");
 const quickOcrConfidence = document.getElementById("quick-ocr-confidence");
 const quickOcrDetails = document.getElementById("quick-ocr-details");
 const quickOcrText = document.getElementById("quick-ocr-text");
+const ocrLanguageSelect = document.getElementById("ocr-language");
 
 const bookTitle = document.getElementById("book-title");
 const bookTotalPages = document.getElementById("book-total-pages");
@@ -21,6 +71,7 @@ const historyExport = document.getElementById("history-export");
 
 const state = loadState();
 let ocrWorkerPromise = null;
+let ocrWorkerLanguage = null;
 
 function createBlankBook() {
   return {
@@ -35,17 +86,23 @@ function createBlankBook() {
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    return { currentBook: createBlankBook(), history: [] };
+    return { currentBook: createBlankBook(), history: [], ocrLanguage: DEFAULT_OCR_LANGUAGE };
   }
   try {
     const parsed = JSON.parse(raw);
+    const storedLanguage =
+      typeof parsed.ocrLanguage === "string" ? parsed.ocrLanguage : DEFAULT_OCR_LANGUAGE;
+    const ocrLanguage = SUPPORTED_LANGUAGES.has(storedLanguage)
+      ? storedLanguage
+      : DEFAULT_OCR_LANGUAGE;
     return {
       currentBook: parsed.currentBook || createBlankBook(),
       history: Array.isArray(parsed.history) ? parsed.history : [],
+      ocrLanguage,
     };
   } catch (err) {
     console.warn("Failed to read saved state", err);
-    return { currentBook: createBlankBook(), history: [] };
+    return { currentBook: createBlankBook(), history: [], ocrLanguage: DEFAULT_OCR_LANGUAGE };
   }
 }
 
@@ -55,6 +112,17 @@ function saveState() {
 
 bookTitle.value = state.currentBook.title || "";
 bookTotalPages.value = state.currentBook.totalPages || "";
+ocrLanguageSelect.value = state.ocrLanguage || DEFAULT_OCR_LANGUAGE;
+
+ocrLanguageSelect.addEventListener("change", async () => {
+  const nextLanguage = SUPPORTED_LANGUAGES.has(ocrLanguageSelect.value)
+    ? ocrLanguageSelect.value
+    : DEFAULT_OCR_LANGUAGE;
+  state.ocrLanguage = nextLanguage;
+  ocrLanguageSelect.value = nextLanguage;
+  saveState();
+  await resetOcrWorker();
+});
 
 bookTitle.addEventListener("input", () => {
   state.currentBook.title = bookTitle.value.trim();
@@ -280,7 +348,7 @@ async function analyzeWithOcr(file) {
   if (!window.Tesseract) {
     alert("OCR library not loaded. Check your connection.");
   }
-  const worker = await getOcrWorker();
+  const worker = await getOcrWorker(state.ocrLanguage || DEFAULT_OCR_LANGUAGE);
   const imageDataUrl = await preprocessImage(file);
   const { data } = await worker.recognize(imageDataUrl);
   const text = data.text || "";
@@ -346,19 +414,37 @@ function formatConfidence(value) {
   return `${Math.round(value)}%`;
 }
 
-async function getOcrWorker() {
+async function resetOcrWorker() {
   if (!ocrWorkerPromise) {
-    ocrWorkerPromise = (async () => {
-      const worker = await window.Tesseract.createWorker();
-      await worker.loadLanguage("eng");
-      await worker.initialize("eng");
-      await worker.setParameters({
-        tessedit_pageseg_mode: 6,
-        user_defined_dpi: "300",
-      });
-      return worker;
-    })();
+    return;
   }
+  const previousPromise = ocrWorkerPromise;
+  ocrWorkerPromise = null;
+  ocrWorkerLanguage = null;
+  const previousWorker = await previousPromise;
+  await previousWorker.terminate();
+}
+
+async function getOcrWorker(language) {
+  if (ocrWorkerPromise && ocrWorkerLanguage === language) {
+    return ocrWorkerPromise;
+  }
+  const previousPromise = ocrWorkerPromise;
+  ocrWorkerLanguage = language;
+  ocrWorkerPromise = (async () => {
+    if (previousPromise) {
+      const previousWorker = await previousPromise;
+      await previousWorker.terminate();
+    }
+    const worker = await window.Tesseract.createWorker();
+    await worker.loadLanguage(language);
+    await worker.initialize(language);
+    await worker.setParameters({
+      tessedit_pageseg_mode: 6,
+      user_defined_dpi: "300",
+    });
+    return worker;
+  })();
   return ocrWorkerPromise;
 }
 
